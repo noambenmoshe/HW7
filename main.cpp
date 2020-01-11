@@ -53,6 +53,7 @@ int main(int argc, char* argv[]) {
     size_t lastWriteSize = 0;
     //char buffer[MAX_PACKET_SIZE]; //TODO: change to byte
     int timeoutExpiredCount = 0;
+    unsigned short  lastBlock = 0;
     //struct hostent *server;
     DATA dataBuffer;
     WRQ wrqBuffer;
@@ -112,62 +113,6 @@ int main(int argc, char* argv[]) {
         error("sendto() sent a different number of bytes than expected");
     }
 
-
-    do
-    {
-        do
-        {
-            do
-            {
-                // Waiting WAIT_FOR_PACKET_TIMEOUT to see if something appears for us at the socket (we are waiting for DATA)
-                fd_set rfds;
-                struct timeval tv;
-                tv.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
-                int fdNum = select(sock+1,&rfds,NULL,NULL,&tv);
-                if (fdNum == -1) { // syscall select failed
-                    error("SELECT failed: ");
-                }
-                else if (fdNum > 0) // there was something at the socket. we are here not because of a timeout
-                {
-                    // TODO: Read the DATA packet from the socket (at least we hope this is a DATA packet)
-                    recvMsgSize=recvfrom(sock,&dataBuffer,MAX_PACKET_SIZE,0,(struct sockaddr*)&client_addr,&client_addr_len);
-                    if (recvMsgSize > 0){
-                        // checking if the opcode is DATA
-                        if (dataBuffer.opcode == opcDATA){
-
-                        } else {
-                            //todo: FATAL. not data
-                        }
-                    }
-                    // TODO: send ack
-                }
-                else if (fdNum == 0) // TODO: Time out expired while waiting for data to appear at the socket
-                {
-                    //TODO: Send another ACK for the last packet
-                    timeoutExpiredCount++;
-                }
-                if (timeoutExpiredCount>= NUMBER_OF_FAILURES)
-                {
-                    // FATAL ERROR BAIL OUT
-                }
-            }while (change) // TODO: Continue while some socket was ready but recvfrom somehow failed to read the data
-            if (change) // TODO: We got something else but DATA
-            {
-                // FATAL ERROR BAIL OUT
-            }
-            if (change) // TODO: The incoming block number is not what we have
-            //expected, i.e. this is a DATA pkt but the block number
-            // in DATA was wrong (not last ACK’s block number + 1)
-            {
-                // FATAL ERROR BAIL OUT
-            }
-        } while (FALSE);
-        timeoutExpiredCount = 0;
-        lastWriteSize = fwrite(change); // write next bulk of data
-        // TODO: send ACK packet to the client
-    }while (change); // Have blocks left to be read from client (not end of transmission)
-
-
     // new loops part
     do
     {
@@ -176,33 +121,45 @@ int main(int argc, char* argv[]) {
             do
             { // TODO: Wait WAIT_FOR_PACKET_TIMEOUT to see if something appears
                 // for us at the socket (we are waiting for DATA)
-                if (change)// TODO: if there was something at the socket and we are here not because of a timeout
+
+                fd_set rfds;
+                struct timeval tv;
+                tv.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
+                int fdNum = select(sock+1,&rfds,NULL,NULL,&tv);
+                if (fdNum == -1) { // syscall select failed
+                    error("SELECT failed: ");
+                }
+
+                if (fdNum > 0)// TODO: if there was something at the socket and we are here not because of a timeout
                 {
                 // TODO: Read the DATA packet from the socket (at least we hope this is a DATA packet)
+                    recvMsgSize=recvfrom(sock,&dataBuffer,MAX_PACKET_SIZE,0,(struct sockaddr*)&client_addr,&client_addr_len);
                 }
-                if (change) // TODO: Time out expired while waiting for data to appear at the socket
+                if (fdNum == 0) // TODO: Time out expired while waiting for data to appear at the socket
                 {
-                //TODO: Send another ACK for the last packet
+                    //TODO: Send another ACK for the last packet
                     timeoutExpiredCount++;
                 }
-                if (timeoutExpiredCount>= NUMBER_OF_FAILURES)
+                if (timeoutExpiredCount >= NUMBER_OF_FAILURES)
                 {
                 // FATAL ERROR BAIL OUT
                 }
-            }while (change) // TODO: Continue while some socket was ready but recvfrom somehow failed to read the data
-            if (change) // TODO: We got something else but DATA
+            }while (recvMsgSize == -1); // TODO: Continue while some socket was ready but recvfrom somehow failed to read the data
+
+            if (dataBuffer.opcode != opcDATA) // TODO: We got something else but DATA
             {
             // FATAL ERROR BAIL OUT
             }
-            if (change) // TODO: The incoming block number is not what we have expected, i.e. this is a DATA pkt but
+            if (dataBuffer.blockNum != lastBlock+1) // TODO: The incoming block number is not what we have expected, i.e. this is a DATA pkt but
                         // the block number in DATA was wrong (not last ACK’s block number + 1)
             {
             // FATAL ERROR BAIL OUT
             }
-        }while (FALSE);
+        }while (false);
         timeoutExpiredCount = 0;
         lastWriteSize = fwrite(dataBuffer.data,sizeof(char),recvMsgSize-HEADER_SIZE,pFile); // write next bulk of data
         // TODO: send ACK packet to the client
+        lastBlock++;
     }while (lastWriteSize == MAX_DATA_SIZE); // Have blocks left to be read from client (not end of transmission)
 
 
