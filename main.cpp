@@ -48,13 +48,13 @@ int main(int argc, char* argv[]) {
     WRQ wrqBuffer;
     //int fdToWriteTo;
     FILE* pFile = NULL;
-
+    ACK ack;
     if(argc <2){
         fprintf(stderr, "ERROR: no port provided\n");
     }
 
     if((sock = socket(PF_INET, SOCK_DGRAM,IPPROTO_UDP)) < 0 ){
-        error("creating socket failed", pFile);
+        error("creating socket failed",pFile);
     }
 
     memset(&my_addr,0,sizeof(my_addr));
@@ -91,14 +91,10 @@ int main(int argc, char* argv[]) {
     }
 
     //send ack 0
-    ACK ack0;
-    ack0.opcode = opcACK;
-    ack0.blockNum = 0;
-    if((sendto(sock,&ack0,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
-       /* if(close(fdToWriteTo) == -1)
-            error("failed to close file");
-        */
-       fclose(pFile);
+
+    ack.opcode = opcACK;
+    ack.blockNum = 0;
+    if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
         error("sendto() sent a different number of bytes than expected",pFile);
     }
 
@@ -127,6 +123,13 @@ int main(int argc, char* argv[]) {
                 if (fdNum == 0) // TODO: Time out expired while waiting for data to appear at the socket
                 {
                     //TODO: Send another ACK for the last packet
+
+                    //send ack
+                    ack.opcode = opcACK;
+                    ack.blockNum = lastBlock;
+                    if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
+                        error("sendto() sent a different number of bytes than expected",pFile);
+                    }
                     timeoutExpiredCount++;
                 }
                 if (timeoutExpiredCount >= NUMBER_OF_FAILURES)
@@ -158,6 +161,13 @@ int main(int argc, char* argv[]) {
         timeoutExpiredCount = 0;
         lastWriteSize = fwrite(dataBuffer.data,sizeof(char),recvMsgSize-HEADER_SIZE,pFile); // write next bulk of data
         // TODO: send ACK packet to the client
+
+        //send ack
+        ack.opcode = opcACK;
+        ack.blockNum = dataBuffer.blockNum;
+        if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
+            error("sendto() sent a different number of bytes than expected",pFile);
+        }
         lastBlock++;
     }while (lastWriteSize == MAX_DATA_SIZE); // Have blocks left to be read from client (not end of transmission)
 
