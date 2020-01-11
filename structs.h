@@ -1,6 +1,6 @@
 #ifndef HW7_STRUCTS_H
 #define HW7_STRUCTS_H
-
+#include <fstream>
 #include <cstring>
 using std::string;
 
@@ -13,7 +13,7 @@ typedef struct ACKstruct{
 
 typedef struct WRQstruct{
     unsigned short opcode;
-    string fileName; //todo: fix string
+    const char *fileName; //todo: fix string
     string transmissionMode;
 }__attribute__((packed)) WRQ;
 

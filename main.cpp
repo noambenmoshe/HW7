@@ -6,6 +6,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include "structs.h"
 
 #define MAX_PACKET_SIZE 516
@@ -22,20 +24,6 @@ const unsigned short opcDATA = 3;
 const int WAIT_FOR_PACKET_TIMEOUT = 3;
 const int NUMBER_OF_FAILURES = 7;
 
-
-//struct sockaddr{
-//    unsigned  short sa_family; //address family
-//    char sa_data[14]; //14 bytes of protocl address
-//};
-//struct in_addr{
-//    unsigned long s_addr; //32-bit long, (4 bytes) ip address
-//};
-//struct sockaddr_in{
-//    short int sin_family;       //Address family
-//    unsigned short int sin_port;//port number
-//    struct in_addr sin_addr;    //internet address(ip)
-//    unsigned char sin_zero[8];  //for allignments
-//}__attribute__((packed));
 
 void error(char* msg){
     string msgErr = "ERROR: " + string(msg);
@@ -66,6 +54,8 @@ int main(int argc, char* argv[]) {
     //struct hostent *server;
     DATA dataBuffer;
     WRQ wrqBuffer;
+    //int fdToWriteTo;
+    FILE* pFile;
 
     if(argc <2){
         fprintf(stderr, "ERROR: no port provided\n");
@@ -97,18 +87,29 @@ int main(int argc, char* argv[]) {
         error("first message is not WRQ");
     }
 
-    Encoding.ASCII.GetString(buffer,3, buffer.length-END_WRQ_SIZE).Trim('\0');
-
+   /* fdToWriteTo=open(wrqBuffer.fileName,O_CREAT);//TODO: make sure this is the right flag we need
+    if(fdToWriteTo == -1){
+        //const string msg ="Opened file " + wrqBuffer.fileName +" failed";
+        error("Open file failed");
+    }
+    */
+    pFile = fopen(wrqBuffer.fileName,"w"); //TODO: make suere we want to open a new file
+    if(pFile == NULL){
+        error("Failed to open file");
+    }
 
     //send ack 0
     ACK ack0;
     ack0.opcode = opcACK;
     ack0.blockNum = 0;
     if((sendto(sock,&ack0,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
+       /* if(close(fdToWriteTo) == -1)
+            error("failed to close file");
+        */
+       fclose(pFile);
         error("sendto() sent a different number of bytes than expected");
     }
 
-    //fileStream.Write(buffer,3, )
 
     do
     {
