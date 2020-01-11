@@ -1,7 +1,6 @@
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
-#include <bits/socket.h>
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -27,7 +26,7 @@ const int NUMBER_OF_FAILURES = 7;
 
 
 void error(const string& msg, FILE* pFile){
-    string msgErr = "ERROR: " + msg;
+    string msgErr = "TTFTP_ERROR: " + msg;
     perror(msgErr.c_str());
     if (pFile != NULL)
         fclose(pFile);
@@ -147,6 +146,7 @@ int main(int argc, char* argv[]) {
             {
                 // FATAL ERROR BAIL OUT
                 cout << "FLOWERROR: packet received isn't DATA. Bailing." <<endl;
+                cout << "RECVFAIL" << endl;
                 fclose(pFile);
                 exit(1);
             }
@@ -155,14 +155,16 @@ int main(int argc, char* argv[]) {
             {
                 // FATAL ERROR BAIL OUT
                 cout << "FLOWERROR: data received is different than previous + 1 . Bailing." <<endl;
+                cout << "RECVFAIL" << endl;
                 fclose(pFile);
                 exit(1);
 
             }
         }while (false);
-        timeoutExpiredCount = 0;
         cout << "IN:DATA,"<< dataBuffer.blockNum << ","<< recvMsgSize << endl;
         lastWriteSize = fwrite(dataBuffer.data,sizeof(char),recvMsgSize-HEADER_SIZE,pFile); // write next bulk of data
+        cout << "WRITING:" << recvMsgSize <<endl;
+        timeoutExpiredCount = 0;
         // TODO: send ACK packet to the client
 
         //send ack
@@ -175,6 +177,6 @@ int main(int argc, char* argv[]) {
         lastBlock++;
     }while (lastWriteSize == MAX_DATA_SIZE); // Have blocks left to be read from client (not end of transmission)
 
-
+    cout << "RECVOK" << endl;
     return 0;
 }
