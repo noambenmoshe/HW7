@@ -75,17 +75,17 @@ int main(int argc, char* argv[]) {
         error("recvfrom() failed", NULL);
     }
 
-    if(wrqBuffer.opcode == opcWRQ){
+    if(wrqBuffer.opcode != opcWRQ){
         error("first message is not WRQ", NULL);
     }
-
+    cout << "IN:WRQ,"<< wrqBuffer.fileName << ","<< wrqBuffer.transmissionMode << endl;
    /* fdToWriteTo=open(wrqBuffer.fileName,O_CREAT);//TODO: make sure this is the right flag we need
     if(fdToWriteTo == -1){
         //const string msg ="Opened file " + wrqBuffer.fileName +" failed";
         error("Open file failed");
     }
     */
-    pFile = fopen(wrqBuffer.fileName,"w"); //TODO: make suere we want to open a new file
+    pFile = fopen(wrqBuffer.fileName,"w"); //TODO: make sure we want to open a new file
     if(pFile == NULL){
         error("Failed to open file", pFile);
     }
@@ -94,6 +94,7 @@ int main(int argc, char* argv[]) {
 
     ack.opcode = opcACK;
     ack.blockNum = 0;
+    cout << "OUT:ACK,"<< ack.blockNum << endl;
     if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
         error("sendto() sent a different number of bytes than expected",pFile);
     }
@@ -127,6 +128,7 @@ int main(int argc, char* argv[]) {
                     //send ack
                     ack.opcode = opcACK;
                     ack.blockNum = lastBlock;
+                    cout << "OUT:ACK,"<< ack.blockNum << endl;
                     if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
                         error("sendto() sent a different number of bytes than expected",pFile);
                     }
@@ -159,12 +161,14 @@ int main(int argc, char* argv[]) {
             }
         }while (false);
         timeoutExpiredCount = 0;
+        cout << "IN:DATA,"<< dataBuffer.blockNum << ","<< recvMsgSize << endl;
         lastWriteSize = fwrite(dataBuffer.data,sizeof(char),recvMsgSize-HEADER_SIZE,pFile); // write next bulk of data
         // TODO: send ACK packet to the client
 
         //send ack
         ack.opcode = opcACK;
         ack.blockNum = dataBuffer.blockNum;
+        cout << "OUT:ACK,"<< ack.blockNum << endl;
         if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
             error("sendto() sent a different number of bytes than expected",pFile);
         }
