@@ -26,8 +26,8 @@ const int WAIT_FOR_PACKET_TIMEOUT = 3;
 const int NUMBER_OF_FAILURES = 7;
 
 
-void error(char* msg, FILE* pFile){
-    string msgErr = "ERROR: " + string(msg);
+void error(const string& msg, FILE* pFile){
+    string msgErr = "ERROR: " + msg;
     perror(msgErr.c_str());
     if (pFile != NULL)
         fclose(pFile);
@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
     }
 
     if((sock = socket(PF_INET, SOCK_DGRAM,IPPROTO_UDP)) < 0 ){
-        error("creating socket failed");
+        error("creating socket failed", pFile);
     }
 
     memset(&my_addr,0,sizeof(my_addr));
@@ -112,7 +112,7 @@ int main(int argc, char* argv[]) {
                 // for us at the socket (we are waiting for DATA)
 
                 fd_set rfds;
-                struct timeval tv;
+                struct timeval tv{};
                 tv.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
                 int fdNum = select(sock+1,&rfds,NULL,NULL,&tv);
                 if (fdNum == -1) { // syscall select failed
