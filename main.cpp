@@ -6,16 +6,19 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <cstring>
+#include "structs.h"
 
-#define MAX_SIZE 516 //TODO: make sure we know what is the right size
+#define MAX_PACKET_SIZE 516
 #define ACK_SIZE 4*sizeof(char)
 #define END_WRQ_SIZE 50
-#define WRQ 2
-#define DATA 3
+//#define opcACK 4
+//#define opcWRQ 2
+//#define opcDATA 3
 
 using namespace std;
-
+const unsigned short opcACK = 4;
+const unsigned short opcWRQ = 2;
+const unsigned short opcDATA = 3;
 const int WAIT_FOR_PACKET_TIMEOUT = 3;
 const int NUMBER_OF_FAILURES = 7;
 
@@ -40,15 +43,29 @@ void error(char* msg){
     exit(1);
 }
 
+bool opcodeValidate(const unsigned short expected, const char current[2]){
+    unsigned short shortCurrent = *(unsigned short *)current;
+    return expected == shortCurrent;
+}
 
+void extractFromData(const char srcArray[], char subArray[], int n)
+{
+    for (int i = 0; i < n; i++)
+    {
+        subArray[i] = srcArray[i];
+    }
+}
 
 int main(int argc, char* argv[]) {
     int sock,recvMsgSize;
     struct sockaddr_in my_addr={0}, client_addr= {0};
     unsigned int client_addr_len;
     unsigned short portno;
-    char buffer[MAX_SIZE]; //TODO: change to byte
+    //char buffer[MAX_PACKET_SIZE]; //TODO: change to byte
+    int timeoutExpiredCount = 0;
     //struct hostent *server;
+    DATA dataBuffer;
+    WRQ wrqBuffer;
 
     if(argc <2){
         fprintf(stderr, "ERROR: no port provided\n");
@@ -71,21 +88,23 @@ int main(int argc, char* argv[]) {
     }
 
     // block until message received from client
-    if((recvMsgSize=recvfrom(sock,buffer,MAX_SIZE,0,(struct sockaddr*)&client_addr,&client_addr_len) < 0){
+    recvMsgSize=recvfrom(sock,&wrqBuffer,MAX_PACKET_SIZE,0,(struct sockaddr*)&client_addr,&client_addr_len);
+    if(recvMsgSize < 0){
         error("recvfrom() failed");
     }
 
-    if(strcmp(buffer[1],WRQ)){
+    if(wrqBuffer.opcode == opcWRQ){
         error("first message is not WRQ");
     }
 
     Encoding.ASCII.GetString(buffer,3, buffer.length-END_WRQ_SIZE).Trim('\0');
 
 
-
-
-    //sent ack 0
-    if((sendto(sock,buffer,ACK_SIZE, 0, (sockaddr*)&client_addr,sizeof(client_addr)) != ACK_SIZE){
+    //send ack 0
+    ACK ack0;
+    ack0.opcode = opcACK;
+    ack0.blockNum = 0;
+    if((sendto(sock,&ack0,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
         error("sendto() sent a different number of bytes than expected");
     }
 
@@ -97,17 +116,36 @@ int main(int argc, char* argv[]) {
         {
             do
             {
-                // TODO: Wait WAIT_FOR_PACKET_TIMEOUT to see if something appears
-                // for us at the socket (we are waiting for DATA)
-                if ()// TODO: if there was something at the socket and
-                    // we are here not because of a timeout
-                {
-                    // TODO: Read the DATA packet from the socket (at
-                    // least we hope this is a DATA packet)
-                    //send ack
+                // Waiting WAIT_FOR_PACKET_TIMEOUT to see if something appears for us at the socket (we are waiting for DATA)
+                fd_set rfds;
+                struct timeval tv;
+                tv.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
+                int fdNum = select(sock+1,&rfds,NULL,NULL,&tv);
+                if (fdNum == -1) { // syscall select failed
+                    error("SELECT failed: ");
                 }
-                if (...) // TODO: Time out expired while waiting for data
-                // to appear at the socket
+                else if (fdNum > 0) // there was something at the socket. we are here not because of a timeout
+                {
+                    // TODO: Read the DATA packet from the socket (at least we hope this is a DATA packet)
+                    recvMsgSize=recvfrom(sock,&dataBuffer,MAX_PACKET_SIZE,0,(struct sockaddr*)&client_addr,&client_addr_len);
+                    if (recvMsgSize > 0){
+                        // checking if the opcode is DATA
+                        if (dataBuffer.opcode == opcDATA){
+
+                        } else {
+                            //todo: FATAL. not data
+                        }
+                        /*char receivedOpc[2];
+                        extractFromData(buffer,receivedOpc,2);
+                        if (opcodeValidate(opcDATA,receivedOpc)){ //packet received is with opcode of DATA
+
+                        }
+                        */
+
+                    }
+                    // TODO: send ack
+                }
+                else if (fdNum == 0) // TODO: Time out expired while waiting for data to appear at the socket
                 {
                     //TODO: Send another ACK for the last packet
                     timeoutExpiredCount++;
@@ -116,13 +154,12 @@ int main(int argc, char* argv[]) {
                 {
                     // FATAL ERROR BAIL OUT
                 }
-            }while (...) // TODO: Continue while some socket was ready
-            // but recvfrom somehow failed to read the data
-            if (...) // TODO: We got something else but DATA
+            }while (change) // TODO: Continue while some socket was ready but recvfrom somehow failed to read the data
+            if (change) // TODO: We got something else but DATA
             {
                 // FATAL ERROR BAIL OUT
             }
-            if (...) // TODO: The incoming block number is not what we have
+            if (change) // TODO: The incoming block number is not what we have
             // expected, i.e. this is a DATA pkt but the block number
             // in DATA was wrong (not last ACK’s block number + 1)
             {
@@ -130,9 +167,9 @@ int main(int argc, char* argv[]) {
             }
         } while (FALSE);
         timeoutExpiredCount = 0;
-        lastWriteSize = fwrite(...); // write next bulk of data
+        lastWriteSize = fwrite(change); // write next bulk of data
         // TODO: send ACK packet to the client
-    }while (...); // Have blocks left to be read from client (not end of transmission)
+    }while (change); // Have blocks left to be read from client (not end of transmission)
 
     return 0;
 }
