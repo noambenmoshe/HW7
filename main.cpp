@@ -26,23 +26,12 @@ const int WAIT_FOR_PACKET_TIMEOUT = 3;
 const int NUMBER_OF_FAILURES = 7;
 
 
-void error(char* msg){
+void error(char* msg, FILE* pFile){
     string msgErr = "ERROR: " + string(msg);
     perror(msgErr.c_str());
+    if (pFile != NULL)
+        fclose(pFile);
     exit(1);
-}
-
-bool opcodeValidate(const unsigned short expected, const char current[2]){
-    unsigned short shortCurrent = *(unsigned short *)current;
-    return expected == shortCurrent;
-}
-
-void extractFromData(const char srcArray[], char subArray[], int n)
-{
-    for (int i = 0; i < n; i++)
-    {
-        subArray[i] = srcArray[i];
-    }
 }
 
 int main(int argc, char* argv[]) {
@@ -58,7 +47,7 @@ int main(int argc, char* argv[]) {
     DATA dataBuffer;
     WRQ wrqBuffer;
     //int fdToWriteTo;
-    FILE* pFile;
+    FILE* pFile = NULL;
 
     if(argc <2){
         fprintf(stderr, "ERROR: no port provided\n");
@@ -77,17 +66,17 @@ int main(int argc, char* argv[]) {
     my_addr.sin_port = htons(portno);
 
     if(bind(sock, (struct sockaddr*)&my_addr,sizeof(my_addr)) < 0){
-        error("on binding");
+        error("on binding", NULL);
     }
 
     // block until message received from client
     recvMsgSize=recvfrom(sock,&wrqBuffer,MAX_PACKET_SIZE,0,(struct sockaddr*)&client_addr,&client_addr_len);
     if(recvMsgSize < 0){
-        error("recvfrom() failed");
+        error("recvfrom() failed", NULL);
     }
 
     if(wrqBuffer.opcode == opcWRQ){
-        error("first message is not WRQ");
+        error("first message is not WRQ", NULL);
     }
 
    /* fdToWriteTo=open(wrqBuffer.fileName,O_CREAT);//TODO: make sure this is the right flag we need
@@ -98,7 +87,7 @@ int main(int argc, char* argv[]) {
     */
     pFile = fopen(wrqBuffer.fileName,"w"); //TODO: make suere we want to open a new file
     if(pFile == NULL){
-        error("Failed to open file");
+        error("Failed to open file", pFile);
     }
 
     //send ack 0
@@ -110,7 +99,7 @@ int main(int argc, char* argv[]) {
             error("failed to close file");
         */
        fclose(pFile);
-        error("sendto() sent a different number of bytes than expected");
+        error("sendto() sent a different number of bytes than expected",pFile);
     }
 
     // new loops part
@@ -127,7 +116,7 @@ int main(int argc, char* argv[]) {
                 tv.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
                 int fdNum = select(sock+1,&rfds,NULL,NULL,&tv);
                 if (fdNum == -1) { // syscall select failed
-                    error("SELECT failed: ");
+                    error("SELECT failed: ", pFile);
                 }
 
                 if (fdNum > 0)// TODO: if there was something at the socket and we are here not because of a timeout
@@ -142,18 +131,28 @@ int main(int argc, char* argv[]) {
                 }
                 if (timeoutExpiredCount >= NUMBER_OF_FAILURES)
                 {
-                // FATAL ERROR BAIL OUT
+                    // FATAL ERROR BAIL OUT
+                    cout << "FLOWERROR: number of timeouts exceeds max value. Bailing." <<endl;
+                    fclose(pFile);
+                    exit(1);
                 }
             }while (recvMsgSize == -1); // TODO: Continue while some socket was ready but recvfrom somehow failed to read the data
 
             if (dataBuffer.opcode != opcDATA) // TODO: We got something else but DATA
             {
-            // FATAL ERROR BAIL OUT
+                // FATAL ERROR BAIL OUT
+                cout << "FLOWERROR: packet received isn't DATA. Bailing." <<endl;
+                fclose(pFile);
+                exit(1);
             }
             if (dataBuffer.blockNum != lastBlock+1) // TODO: The incoming block number is not what we have expected, i.e. this is a DATA pkt but
                         // the block number in DATA was wrong (not last ACK’s block number + 1)
             {
-            // FATAL ERROR BAIL OUT
+                // FATAL ERROR BAIL OUT
+                cout << "FLOWERROR: data received is different than previous + 1 . Bailing." <<endl;
+                fclose(pFile);
+                exit(1);
+
             }
         }while (false);
         timeoutExpiredCount = 0;
