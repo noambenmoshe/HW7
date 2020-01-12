@@ -91,8 +91,8 @@ int main(int argc, char* argv[]) {
 
     //send ack 0
 
-    ack.opcode = opcACK;
-    ack.blockNum = 0;
+    ack.opcode = htons(opcACK);
+    ack.blockNum = htons(0);
     cout << "OUT:ACK,"<< ack.blockNum << endl;
     if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
         error("sendto() sent a different number of bytes than expected",pFile);
@@ -125,8 +125,8 @@ int main(int argc, char* argv[]) {
                     //TODO: Send another ACK for the last packet
 
                     //send ack
-                    ack.opcode = opcACK;
-                    ack.blockNum = lastBlock;
+                    ack.opcode = htons(opcACK);
+                    ack.blockNum = htons(lastBlock);
                     cout << "OUT:ACK,"<< ack.blockNum << endl;
                     if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
                         error("sendto() sent a different number of bytes than expected",pFile);
@@ -142,7 +142,7 @@ int main(int argc, char* argv[]) {
                 }
             }while (recvMsgSize == -1); // TODO: Continue while some socket was ready but recvfrom somehow failed to read the data
 
-            if (dataBuffer.opcode != opcDATA) // TODO: We got something else but DATA
+            if (ntohs(dataBuffer.opcode) != opcDATA) // TODO: We got something else but DATA
             {
                 // FATAL ERROR BAIL OUT
                 cout << "FLOWERROR: packet received isn't DATA. Bailing." <<endl;
@@ -150,7 +150,7 @@ int main(int argc, char* argv[]) {
                 fclose(pFile);
                 exit(1);
             }
-            if (dataBuffer.blockNum != lastBlock+1) // TODO: The incoming block number is not what we have expected, i.e. this is a DATA pkt but
+            if (ntohs(dataBuffer.blockNum) != lastBlock+1) // TODO: The incoming block number is not what we have expected, i.e. this is a DATA pkt but
                         // the block number in DATA was wrong (not last ACK’s block number + 1)
             {
                 // FATAL ERROR BAIL OUT
@@ -168,8 +168,8 @@ int main(int argc, char* argv[]) {
         // TODO: send ACK packet to the client
 
         //send ack
-        ack.opcode = opcACK;
-        ack.blockNum = dataBuffer.blockNum;
+        ack.opcode =htons(opcACK);
+        ack.blockNum = htons(dataBuffer.blockNum);
         cout << "OUT:ACK,"<< ack.blockNum << endl;
         if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
             error("sendto() sent a different number of bytes than expected",pFile);
