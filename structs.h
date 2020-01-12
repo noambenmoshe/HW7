@@ -14,7 +14,7 @@ typedef struct ACKstruct{
 
 typedef struct WRQstruct{
     unsigned short opcode;
-    char wrqStrings[MAX_DATA_SIZE - sizeof(unsigned short)];
+    char wrqStrings[MAX_DATA_SIZE + sizeof(unsigned short)];
     //string transmissionMode;
 }__attribute__((packed)) WRQ;
 

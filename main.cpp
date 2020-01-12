@@ -115,6 +115,9 @@ int main(int argc, char* argv[]) {
                 // for us at the socket (we are waiting for DATA)
 
                 fd_set rfds;
+                FD_ZERO(&rfds);
+                FD_CLR(sock,&rfds);
+                FD_SET(sock, &rfds);
                 struct timeval tv{};
                 tv.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
                 int fdNum = select(sock+1,&rfds,NULL,NULL,&tv);
