@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
         error("recvfrom() failed", NULL);
     }
 
-    if(wrqBuffer.opcode != opcWRQ){
+    if(ntohs(wrqBuffer.opcode) != opcWRQ){
         error("first message is not WRQ", NULL);
     }
     cout << "IN:WRQ,"<< wrqBuffer.fileName << ","<< wrqBuffer.transmissionMode << endl;
