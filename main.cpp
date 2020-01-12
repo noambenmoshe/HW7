@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
     if(recvMsgSize < 0){
         error("recvfrom() failed", NULL);
     }
-    cout  << "6 wrqBuffer opcode"<<wrqBuffer.opcode << endl; //DEBUG
+    cout  << "6 wrqBuffer opcode "<< ntohs(wrqBuffer.opcode) << endl; //DEBUG
     if(ntohs(wrqBuffer.opcode) != opcWRQ){
         error("first message is not WRQ", NULL);
     }
@@ -148,7 +148,7 @@ int main(int argc, char* argv[]) {
                     exit(1);
                 }
             }while (recvMsgSize == -1); // TODO: Continue while some socket was ready but recvfrom somehow failed to read the data
-
+            cout  << "dataBuffer opcode "<< ntohs(dataBuffer.opcode) << endl; //DEBUG
             if (ntohs(dataBuffer.opcode) != opcDATA) // TODO: We got something else but DATA
             {
                 // FATAL ERROR BAIL OUT
