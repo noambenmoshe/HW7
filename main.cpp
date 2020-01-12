@@ -9,13 +9,8 @@
 #include <fcntl.h>
 #include "structs.h"
 
-
 #define ACK_SIZE 4*sizeof(char)
-#define END_WRQ_SIZE 50
 #define HEADER_SIZE 4
-//#define opcACK 4
-//#define opcWRQ 2
-//#define opcDATA 3
 
 using namespace std;
 const unsigned short opcACK = 4;
@@ -24,12 +19,16 @@ const unsigned short opcDATA = 3;
 const int WAIT_FOR_PACKET_TIMEOUT = 3;
 const int NUMBER_OF_FAILURES = 7;
 
-
 void error(const string& msg, FILE* pFile){
     string msgErr = "TTFTP_ERROR: " + msg;
     perror(msgErr.c_str());
-    if (pFile != NULL)
-        fclose(pFile);
+    if (pFile != NULL){
+        if (fclose(pFile) != 0)
+        {
+            printf("TTFTP_ERROR: error closing file\n");
+            printf("RECVFAIL\n");
+        }
+    }
     exit(1);
 }
 
@@ -38,19 +37,18 @@ int main(int argc, char* argv[]) {
     struct sockaddr_in my_addr={0}, client_addr= {0};
     unsigned int client_addr_len;
     unsigned short portno;
-    size_t lastWriteSize = 0;
-    //char buffer[MAX_PACKET_SIZE]; //TODO: change to byte
-    int timeoutExpiredCount = 0;
     unsigned short  lastBlock = 0;
-    //struct hostent *server;
+    size_t lastWriteSize = 0;
+    int timeoutExpiredCount = 0;
     DATA dataBuffer;
     WRQ wrqBuffer;
-    //int fdToWriteTo;
-    FILE* pFile = NULL;
     ACK ack;
+    FILE* pFile = NULL;
+    int fdNum = 0;
     char fileName[MAX_DATA_SIZE], transmissionMode[MAX_DATA_SIZE];
     if(argc <2){
         fprintf(stderr, "ERROR: no port provided\n");
+        exit(1);
     }
     cout  << "1" << endl; //DEBUG
     if((sock = socket(PF_INET, SOCK_DGRAM,IPPROTO_UDP)) < 0 ){
@@ -120,7 +118,7 @@ int main(int argc, char* argv[]) {
                 FD_SET(sock, &rfds);
                 struct timeval tv{};
                 tv.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
-                int fdNum = select(sock+1,&rfds,NULL,NULL,&tv);
+                fdNum = select(sock+1,&rfds,NULL,NULL,&tv);
                 if (fdNum == -1) { // syscall select failed
                     error("SELECT failed: ", pFile);
                 }
@@ -134,9 +132,10 @@ int main(int argc, char* argv[]) {
                 {
                     //TODO: Send another ACK for the last packet
 
-                    //send ack
-                    ack.opcode = htons(opcACK);
-                    ack.blockNum = htons(lastBlock);
+                    //send ack again
+                    //ack.opcode = htons(opcACK);
+                    cout << "DEBUG: lastBlock is "<<lastBlock << endl; //DEBUG
+                    //ack.blockNum = htons(lastBlock);
                     cout << "OUT:ACK,"<< ack.blockNum << endl;
                     if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
                         error("sendto() sent a different number of bytes than expected",pFile);
@@ -147,26 +146,39 @@ int main(int argc, char* argv[]) {
                 {
                     // FATAL ERROR BAIL OUT
                     cout << "FLOWERROR: number of timeouts exceeds max value. Bailing." <<endl;
-                    fclose(pFile);
+                    if (fclose(pFile) != 0)
+                    {
+                        printf("TTFTP_ERROR: error closing file\n");
+                        printf("RECVFAIL\n");
+                    }
                     exit(1);
                 }
-            }while (recvMsgSize == -1); // TODO: Continue while some socket was ready but recvfrom somehow failed to read the data
+            }while ((recvMsgSize == -1 &&  fdNum > 0) || fdNum == 0); // TODO: Continue while some socket was ready but recvfrom somehow failed to read the data
             cout  << "dataBuffer opcode "<< ntohs(dataBuffer.opcode) << endl; //DEBUG
             if (ntohs(dataBuffer.opcode) != opcDATA) // TODO: We got something else but DATA
             {
                 // FATAL ERROR BAIL OUT
                 cout << "FLOWERROR: packet received isn't DATA. Bailing." <<endl;
                 cout << "RECVFAIL" << endl;
-                fclose(pFile);
+                if (fclose(pFile) != 0)
+                {
+                    printf("TTFTP_ERROR: error closing file\n");
+                    printf("RECVFAIL\n");
+                }
                 exit(1);
             }
+            cout << "DEBUG: lastBlock is "<<lastBlock  << "received: "<<ntohs(dataBuffer.blockNum) << endl; //DEBUG
             if (ntohs(dataBuffer.blockNum) != lastBlock+1) // TODO: The incoming block number is not what we have expected, i.e. this is a DATA pkt but
                         // the block number in DATA was wrong (not last ACK’s block number + 1)
             {
                 // FATAL ERROR BAIL OUT
                 cout << "FLOWERROR: data received is different than previous + 1 . Bailing." <<endl;
                 cout << "RECVFAIL" << endl;
-                fclose(pFile);
+                if (fclose(pFile) != 0)
+                {
+                    printf("TTFTP_ERROR: error closing file\n");
+                    printf("RECVFAIL\n");
+                }
                 exit(1);
 
             }
@@ -179,14 +191,20 @@ int main(int argc, char* argv[]) {
 
         //send ack
         ack.opcode =htons(opcACK);
-        ack.blockNum = htons(dataBuffer.blockNum);
+        ack.blockNum = dataBuffer.blockNum;
         cout << "OUT:ACK,"<< ack.blockNum << endl;
         if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
             error("sendto() sent a different number of bytes than expected",pFile);
         }
         lastBlock++;
+        //sleep(1); //DEBUG
     }while (lastWriteSize == MAX_DATA_SIZE); // Have blocks left to be read from client (not end of transmission)
 
     cout << "RECVOK" << endl;
+    if (fclose(pFile) != 0)
+    {
+        printf("TTFTP_ERROR: error closing file\n");
+        printf("RECVFAIL\n");
+    }
     return 0;
 }
