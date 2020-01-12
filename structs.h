@@ -5,6 +5,7 @@
 using std::string;
 
 #define MAX_DATA_SIZE 512 //TODO: make sure we know what is the right size
+#define MAX_PACKET_SIZE 516
 
 typedef struct ACKstruct{
     unsigned short opcode;
@@ -13,8 +14,8 @@ typedef struct ACKstruct{
 
 typedef struct WRQstruct{
     unsigned short opcode;
-    const char *fileName; //todo: fix string
-    string transmissionMode;
+    char wrqStrings[MAX_DATA_SIZE - sizeof(unsigned short)];
+    //string transmissionMode;
 }__attribute__((packed)) WRQ;
 
 typedef struct DATAstruct{

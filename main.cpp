@@ -9,7 +9,7 @@
 #include <fcntl.h>
 #include "structs.h"
 
-#define MAX_PACKET_SIZE 516
+
 #define ACK_SIZE 4*sizeof(char)
 #define END_WRQ_SIZE 50
 #define HEADER_SIZE 4
@@ -48,43 +48,50 @@ int main(int argc, char* argv[]) {
     //int fdToWriteTo;
     FILE* pFile = NULL;
     ACK ack;
+    char fileName[MAX_DATA_SIZE], transmissionMode[MAX_DATA_SIZE];
     if(argc <2){
         fprintf(stderr, "ERROR: no port provided\n");
     }
-
+    cout  << "1" << endl; //DEBUG
     if((sock = socket(PF_INET, SOCK_DGRAM,IPPROTO_UDP)) < 0 ){
         error("creating socket failed",pFile);
     }
 
+    cout  << "2" << endl; //DEBUG
     memset(&my_addr,0,sizeof(my_addr));
 
     portno = atoi(argv[1]);
   //TODO:  if(portno == 0) error("Invalid port number");
+    cout  << "3" << endl; //DEBUG
     my_addr.sin_family = AF_INET;
     my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     my_addr.sin_port = htons(portno);
-
+    cout  << "4" << endl; //DEBUG
     if(bind(sock, (struct sockaddr*)&my_addr,sizeof(my_addr)) < 0){
         error("on binding", NULL);
     }
-
+    cout  << "5" << endl; //DEBUG
     // block until message received from client
     recvMsgSize=recvfrom(sock,&wrqBuffer,MAX_PACKET_SIZE,0,(struct sockaddr*)&client_addr,&client_addr_len);
     if(recvMsgSize < 0){
         error("recvfrom() failed", NULL);
     }
-
+    cout  << "6 wrqBuffer opcode"<<wrqBuffer.opcode << endl; //DEBUG
     if(ntohs(wrqBuffer.opcode) != opcWRQ){
         error("first message is not WRQ", NULL);
     }
-    cout << "IN:WRQ,"<< wrqBuffer.fileName << ","<< wrqBuffer.transmissionMode << endl;
+
+    strcpy(fileName,wrqBuffer.wrqStrings);
+    strcpy(transmissionMode, wrqBuffer.wrqStrings+strlen(fileName)+1);
+
+    cout << "IN:WRQ,"<< fileName << ","<< transmissionMode << endl;
    /* fdToWriteTo=open(wrqBuffer.fileName,O_CREAT);//TODO: make sure this is the right flag we need
     if(fdToWriteTo == -1){
         //const string msg ="Opened file " + wrqBuffer.fileName +" failed";
         error("Open file failed");
     }
     */
-    pFile = fopen(wrqBuffer.fileName,"w"); //TODO: make sure we want to open a new file
+    pFile = fopen(fileName,"w"); //TODO: make sure we want to open a new file
     if(pFile == NULL){
         error("Failed to open file", pFile);
     }
