@@ -19,6 +19,12 @@ const unsigned short opcDATA = 3;
 const int WAIT_FOR_PACKET_TIMEOUT = 3;
 const int NUMBER_OF_FAILURES = 7;
 
+//**************************************************************************************
+// function name: error
+// Description: prints the error message and errno and closes the file if it is open
+// Parameters: msg - message to print, pFile - pointer to file we want to close if open
+// Returns: None
+//***************************************************************************************
 void error(const string& msg, FILE* pFile){
     string msgErr = "TTFTP_ERROR: " + msg;
     perror(msgErr.c_str());
@@ -31,7 +37,20 @@ void error(const string& msg, FILE* pFile){
     }
     exit(1);
 }
+//**************************************************************************************
+// function name: setStringTerminator
+// Description: sets all elemnts in a char array to '\0'
+// Parameters: charToSet - array of chars to initialize to '\0'. Length - of the char array
+// Returns: None
+//***************************************************************************************
 
+//**************************************************************************************
+// function name: main
+// Description: Makes everything happen, starts a connection with client, waits for packets
+//              sends acks when relevant according to tftp protocol
+// Parameters: argc - number of parameters, argv[] array of inputs
+// Returns: int 0 when done
+//***************************************************************************************
 int main(int argc, char* argv[]) {
     int sock,recvMsgSize;
     struct sockaddr_in my_addr={0}, client_addr= {0};
@@ -46,6 +65,7 @@ int main(int argc, char* argv[]) {
     FILE* pFile = NULL;
     int fdNum = 0;
     char fileName[MAX_DATA_SIZE], transmissionMode[MAX_DATA_SIZE];
+    // checking if inputs are valid
     if(argc <2){
         fprintf(stderr, "ERROR: no port provided\n");
         exit(1);
@@ -101,14 +121,13 @@ int main(int argc, char* argv[]) {
             error("sendto() sent a different number of bytes than expected",pFile);
         }
 
-        // new loops part
+    do
+    {
         do
         {
             do
-            {
-                do
-                { // TODO: Wait WAIT_FOR_PACKET_TIMEOUT to see if something appears
-                    // for us at the socket (we are waiting for DATA)
+            { // TODO: Wait WAIT_FOR_PACKET_TIMEOUT to see if something appears
+                // for us at the socket (we are waiting for DATA)
 
                     fd_set rfds;
                     FD_ZERO(&rfds);
@@ -179,13 +198,13 @@ int main(int argc, char* argv[]) {
                     }
                     exit(1);
 
-                }
-            }while (false);
-            cout << "IN:DATA,"<< ntohs(dataBuffer.blockNum) << ","<< recvMsgSize << endl;
-            lastWriteSize = fwrite(dataBuffer.data,sizeof(char),recvMsgSize-HEADER_SIZE,pFile); // write next bulk of data
-            cout << "WRITING:" << recvMsgSize-HEADER_SIZE <<endl;
-            timeoutExpiredCount = 0;
-            // TODO: send ACK packet to the client
+            }
+        }while (false);
+        cout << "IN:DATA,"<< dataBuffer.blockNum << ","<< recvMsgSize << endl;
+        lastWriteSize = fwrite(dataBuffer.data,sizeof(char),recvMsgSize-HEADER_SIZE,pFile); // write next bulk of data
+        cout << "WRITING:" << recvMsgSize <<endl;
+        timeoutExpiredCount = 0;
+        // TODO: send ACK packet to the client
 
             //send ack
             ack.opcode =htons(opcACK);
