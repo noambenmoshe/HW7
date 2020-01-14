@@ -19,7 +19,7 @@ const unsigned short opcDATA = 3;
 const int WAIT_FOR_PACKET_TIMEOUT = 3;
 const int NUMBER_OF_FAILURES = 7;
 
-void error(const string& msg, FILE* pFile){
+void error(const string& msg, FILE* pFile, int sock){
     string msgErr = "TTFTP_ERROR: " + msg;
     perror(msgErr.c_str());
     if (pFile != NULL){
@@ -29,11 +29,20 @@ void error(const string& msg, FILE* pFile){
             printf("RECVFAIL\n");
         }
     }
+    close(sock);
     exit(1);
 }
 
+void setStringTerminator(char* charToSet, int length){
+    if (charToSet == NULL)
+        return;
+    for(int i=0; i<length;i++){
+        charToSet[i] = '\0';
+    }
+}
+
 int main(int argc, char* argv[]) {
-    int sock,recvMsgSize;
+    int sock, recvMsgSize;
     struct sockaddr_in my_addr={0}, client_addr= {0};
     unsigned int client_addr_len;
     unsigned short portno;
@@ -52,9 +61,8 @@ int main(int argc, char* argv[]) {
     }
 
     if((sock = socket(PF_INET, SOCK_DGRAM,IPPROTO_UDP)) < 0 ){
-        error("creating socket failed",pFile);
+        error("creating socket failed",pFile, sock);
     }
-
     memset(&my_addr,0,sizeof(my_addr));
 
     portno = atoi(argv[1]);
@@ -63,18 +71,19 @@ int main(int argc, char* argv[]) {
     my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     my_addr.sin_port = htons(portno);
     if(bind(sock, (struct sockaddr*)&my_addr,sizeof(my_addr)) < 0){
-        error("on binding", NULL);
+        error("on binding", NULL, sock);
     }
     while(true){
         lastBlock = 0;
         // block until message received from client
+        //setStringTerminator(wrqBuffer.wrqStrings, MAX_DATA_SIZE + sizeof(unsigned short));
         recvMsgSize=recvfrom(sock,&wrqBuffer,MAX_PACKET_SIZE,0,(struct sockaddr*)&client_addr,&client_addr_len);
         if(recvMsgSize < 0){
-            error("recvfrom() failed", NULL);
+            error("recvfrom() failed", NULL, sock);
         }
         cout  << "6 wrqBuffer opcode "<< ntohs(wrqBuffer.opcode) << endl; //DEBUG
         if(ntohs(wrqBuffer.opcode) != opcWRQ){
-            error("first message is not WRQ", NULL);
+            error("first message is not WRQ", NULL, sock);
         }
 
         strcpy(fileName,wrqBuffer.wrqStrings);
@@ -89,16 +98,15 @@ int main(int argc, char* argv[]) {
          */
         pFile = fopen(fileName,"w"); //TODO: make sure we want to open a new file
         if(pFile == NULL){
-            error("Failed to open file", pFile);
+            error("Failed to open file", pFile, sock);
         }
 
         //send ack 0
-
         ack.opcode = htons(opcACK);
         ack.blockNum = htons(0);
         cout << "OUT:ACK,"<< ack.blockNum << endl;
         if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
-            error("sendto() sent a different number of bytes than expected",pFile);
+            error("sendto() sent a different number of bytes than expected",pFile, sock);
         }
 
         // new loops part
@@ -118,12 +126,13 @@ int main(int argc, char* argv[]) {
                     tv.tv_sec = WAIT_FOR_PACKET_TIMEOUT;
                     fdNum = select(sock+1,&rfds,NULL,NULL,&tv);
                     if (fdNum == -1) { // syscall select failed
-                        error("SELECT failed: ", pFile);
+                        error("SELECT failed: ", pFile, sock);
                     }
 
                     if (fdNum > 0)// TODO: if there was something at the socket and we are here not because of a timeout
                     {
                         // TODO: Read the DATA packet from the socket (at least we hope this is a DATA packet)
+                        //setStringTerminator(dataBuffer.data, MAX_DATA_SIZE);
                         recvMsgSize=recvfrom(sock,&dataBuffer,MAX_PACKET_SIZE,0,(struct sockaddr*)&client_addr,&client_addr_len);
                     }
                     if (fdNum == 0) // TODO: Time out expired while waiting for data to appear at the socket
@@ -136,7 +145,7 @@ int main(int argc, char* argv[]) {
                         //ack.blockNum = htons(lastBlock);
                         cout << "OUT:ACK,"<< ack.blockNum << endl;
                         if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
-                            error("sendto() sent a different number of bytes than expected",pFile);
+                            error("sendto() sent a different number of bytes than expected",pFile, sock);
                         }
                         timeoutExpiredCount++;
                     }
@@ -192,7 +201,7 @@ int main(int argc, char* argv[]) {
             ack.blockNum = dataBuffer.blockNum;
             cout << "OUT:ACK,"<< ntohs(ack.blockNum) << endl;
             if((sendto(sock,&ack,ACK_SIZE, 0, (sockaddr*)&client_addr, sizeof(client_addr)) != ACK_SIZE)){
-                error("sendto() sent a different number of bytes than expected",pFile);
+                error("sendto() sent a different number of bytes than expected",pFile, sock);
             }
             lastBlock++;
             //sleep(1); //DEBUG
